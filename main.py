@@ -77,7 +77,7 @@ Context:
 
 Question: {question}
 
-If the context does not contain the answer, say "I don't know".
+If the context does not contain the exact answer, but provides relevant hints (example: phrases like "protection of life and personal liberty"), explain those as the basis of the answer but explain in depth and after all this if the context still does not contain any relevant information, respond with "I don't know".
 Be specific and cite the article numbers or key phrases wherever possible.
 """
 )
@@ -95,11 +95,13 @@ Be specific and cite the article numbers or key phrases wherever possible.
 
 if __name__ == "__main__":
     pdf_file = Path("constitution_of_india.pdf")
-    vector_db_from_pdf(str(pdf_file))
+    if not Path("faiss_index").exists():
+        vector_db_from_pdf(str(pdf_file))
+    
     
     query = input("Enter your query: ")
 
-    print(f"\nWorking on it...'\n")
+    print(f"\nWorking on it...\n")
     context = get_similar_chunks(query)
 
     print("\nGenerating answer...\n")
