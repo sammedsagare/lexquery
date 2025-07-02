@@ -29,6 +29,24 @@ def vector_db_from_pdf(pdf_path: str, index_save_path: str = "faiss_index") -> F
     
     return vectorstore
 
+def get_similar_chunks(query: str, k: int = 5):
+    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    
+    vectorstore = FAISS.load_local("faiss_index", embedding_model, allow_dangerous_deserialization=True)
+    print("📦 Loaded FAISS index from disk.")
+
+    docs = vectorstore.similarity_search(query, k=k)
+    context = " ".join([doc.page_content for doc in docs])
+    
+    print(f"🔍 Retrieved {len(docs)} relevant chunks for query: '{query}'\n")
+    
+    return context
+
 if __name__ == "__main__":
     pdf_file = Path("constitution_of_india.pdf")
     vector_db_from_pdf(str(pdf_file))
+    
+    query = input("Enter your query: ")
+    print(f"\n🔍 Searching for relevant chunks for query: '{query}'\n")
+    context = get_similar_chunks(query)
+    print(context[:1000])
