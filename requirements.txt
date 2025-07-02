@@ -7,3 +7,4 @@ faiss-cpu
 pymupdf
 streamlit
 python-dotenv
+langchain-huggingface

@@ -51,3 +51,6 @@ logs/
 # Temporary files
 *.tmp
 *.temp
+
+# Faiss index directory
+faiss_index/
