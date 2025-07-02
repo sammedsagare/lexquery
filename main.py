@@ -13,21 +13,25 @@ embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-
 
 def extract_article_heading(text: str) -> str | None:
     """
-    Detects article numbers in formats like:
-    - 21. Protection...
-    - Article 370...
-    - ART. 22A Right...
+    Detect article number either at the start (preferred) or mentioned anywhere in the text.
+    Returns something like: 'Article 21'
     """
     patterns = [
-        r"(?i)\barticle\s*(\d{1,3}[A-Z]?)\.?\s*-?\s*", 
+        r"(?i)\barticle\s*(\d{1,3}[A-Z]?)\.?\s*-?\s*",  
         r"\b(\d{1,3}[A-Z]?)\.\s+",                     
-        r"(?i)\bART\.?\s*(\d{1,3}[A-Z]?)",             
+        r"(?i)\bart\.?\s*(\d{1,3}[A-Z]?)",             
     ]
 
     for pattern in patterns:
         match = re.search(pattern, text)
         if match:
             return f"Article {match.group(1)}"
+        
+    fallback_pattern = r"(?i)\barticle\s+(\d{1,3}[A-Z]?)"
+    match = re.search(fallback_pattern, text)
+    if match:
+        return f"Article {match.group(1)} (mentioned)"
+    
     return None
 
 def vector_db_from_pdf(pdf_path: str, index_save_path: str = "faiss_index") -> FAISS:
@@ -46,6 +50,7 @@ def vector_db_from_pdf(pdf_path: str, index_save_path: str = "faiss_index") -> F
     for chunk in chunks:
         heading = extract_article_heading(chunk.page_content)
         if heading:
+            chunk.metadata["article_heading"] = heading
             chunk.page_content = f"{heading}\n{chunk.page_content}"
 
     vectorstore = FAISS.from_documents(chunks, embeddings)
@@ -54,15 +59,24 @@ def vector_db_from_pdf(pdf_path: str, index_save_path: str = "faiss_index") -> F
     return vectorstore
 
 def get_similar_chunks(query: str, k: int = 5):
-    embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L12-v2")
-    
-    vectorstore = FAISS.load_local("faiss_index", embedding_model, allow_dangerous_deserialization=True)
+    vectorstore = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
 
     docs = vectorstore.similarity_search(query, k=k)
+    
     context = " ".join([doc.page_content for doc in docs])
-    
-    
-    return context
+    main_article = extract_article_heading(query)
+
+    sources = [doc.metadata.get("article_heading", "Unknown Section") for doc in docs]
+    sources = list(set(sources))
+    if "Unknown Section" in sources:
+        sources.remove("Unknown Section")
+    if main_article and main_article in sources:
+        sources.remove(main_article)
+        sources.insert(0, main_article)
+
+    sources = sources[:2]  # for now i am only showing the top 2 sources, ordered by priority
+
+    return context, sources
 
 def get_response_from_query(query: str, context: str) -> str:
     prompt = PromptTemplate(
@@ -95,6 +109,7 @@ Be specific and cite the article numbers or key phrases wherever possible.
 
 if __name__ == "__main__":
     pdf_file = Path("constitution_of_india.pdf")
+    # vector_db_from_pdf(str(pdf_file))
     if not Path("faiss_index").exists():
         vector_db_from_pdf(str(pdf_file))
     
@@ -102,10 +117,14 @@ if __name__ == "__main__":
     query = input("Enter your query: ")
 
     print(f"\nWorking on it...\n")
-    context = get_similar_chunks(query)
+    context, sources = get_similar_chunks(query)
 
+    
     print("\nGenerating answer...\n")
     answer = get_response_from_query(query, context)
 
     print("\nAnswer:")
     print(answer)
+    print("\nSource(s):")
+    for i, src in enumerate(sources, 1):
+        print(f"{i}. {src}")
