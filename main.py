@@ -7,8 +7,13 @@ from langchain_groq import ChatGroq
 from langchain.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
 import re
+from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core.chat_history import InMemoryChatMessageHistory
+from langchain_core.messages import HumanMessage, AIMessage
 
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L12-v2")
+
+memory = InMemoryChatMessageHistory()
 
 
 def extract_article_heading(text: str) -> str | None:
@@ -86,32 +91,65 @@ def get_similar_chunks(query: str, k: int = 5):
     return context, sources
 
 
-def get_response_from_query(query: str, context: str) -> str:
+def get_response_from_query(query: str, context: str, memory: InMemoryChatMessageHistory) -> str:
+    history_text = ""
+    for msg in memory.messages:
+        role = "You" if isinstance(msg, HumanMessage) else "Assistant"
+        content_str = msg.content if isinstance(msg.content, str) else " ".join(str(item) for item in msg.content)
+        history_text += f"{role}: {content_str.strip()}\n"
+
+    full_context = f"--- Conversation so far ---\n{history_text}\n\n--- Retrieved context ---\n{context}"
+
     prompt = PromptTemplate(
         input_variables=["question", "docs"],
         template="""
-You are a legal assistant helping users based on Indian law.
+You are a legal assistant specializing in Indian law. You are helping the user across multiple questions in the same conversation.
 
-Use ONLY the context below to answer the question. Look through all laws — Constitution of India, IPC, CrPC — and list any relevant articles or sections.
+Your goal is to provide accurate, step-by-step legal advice using only the information in the context below. Always consider the full conversation history, not just the current question.
+
+Use relevant laws from:
+- Constitution of India
+- Indian Penal Code (IPC)
+- Code of Criminal Procedure (CrPC)
+
+Respond in the following format:
+
+Advisory:
+• Provide a clear, step-by-step response addressing the user's current question.
+• If this question builds on a previous one, carry over the relevant context or assumptions.
+
+Citations:
+• List all relevant sections/articles clearly at the end.
+• Format examples:
+  - Article 22(2) of the Constitution of India  
+  - Section 41 of the CrPC  
+  - Section 420 of the IPC
+
+Rules:
+- Use ONLY the information from the context provided.
+- NEVER invent information outside the legal sources.
+- If the documents do not contain enough info to answer accurately, respond with:  
+  "I don't know — the legal documents provided do not contain enough information to answer this question."
 
 Context:
 {docs}
 
-Question: {question}
+Question:
+{question}
 
-Your answer must follow this format:
-1. Start with a clear, step-by-step advisory response.
-2. At the end of your answer, ALWAYS, i repeat, ALWAYS cite the relevant section/article with law name (e.g., Section 41 of CrPC, Article 22(2) of Constitution).
-3. Be accurate. If context lacks enough info, say "I don't know" with reasoning.
-
-Be specific and legally sound. Do not guess.
 """
     )
 
     llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0.7)
     chain = RunnableSequence(prompt, llm)
-    response = chain.invoke({"question": query, "docs": context})
+
+    response = chain.invoke({"question": query, "docs": full_context})
+
+    memory.add_user_message(query)
+    memory.add_ai_message(response.content.strip())
+
     return response.content.strip()
+
 
 if __name__ == "__main__":
     pdf_files = [
@@ -128,12 +166,10 @@ if __name__ == "__main__":
         query = input("\nEnter your legal question (or 'exit'): ")
         if query.lower() == "exit":
             break
+
         print("\nWorking on it...")
         context, sources = get_similar_chunks(query)
         print("Generating answer...\n")
-        answer = get_response_from_query(query, context)
+        answer = get_response_from_query(query, context, memory)
 
         print("\nAnswer:\n", answer)
-        # print("\nSource(s):")
-        # for i, src in enumerate(sources, 1):
-        #     print(f"{i}. {src}")
