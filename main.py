@@ -2,7 +2,7 @@ from langchain_community.document_loaders import PyMuPDFLoader
 from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
 from langchain.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
@@ -34,35 +34,37 @@ def extract_article_heading(text: str) -> str | None:
     
     return None
 
-def vector_db_from_pdf(pdf_path: str, index_save_path: str = "faiss_index") -> FAISS:
-    
+def vector_db_from_pdf(pdf_path: str, persist_directory: str = "chroma_index") -> Chroma:
     loader = PyMuPDFLoader(str(pdf_path))
     documents = loader.load()
-    print(f"Loaded {len(documents)} page(s) from: {pdf_path}")    
-    
+    print(f"Loaded {len(documents)} page(s) from: {pdf_path}")
+
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=800,        
-        chunk_overlap=200,     
-        separators=["\n\n", "\n", ".", ";", ",", " "],  
+        chunk_size=800,
+        chunk_overlap=200,
+        separators=["\n\n", "\n", ".", ";", ",", " "],
     )
-    
     chunks = splitter.split_documents(documents)
+
     for chunk in chunks:
         heading = extract_article_heading(chunk.page_content)
         if heading:
             chunk.metadata["article_heading"] = heading
             chunk.page_content = f"{heading}\n{chunk.page_content}"
 
-    vectorstore = FAISS.from_documents(chunks, embeddings)
-    vectorstore.save_local(index_save_path)
-
+    vectorstore = Chroma.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        persist_directory=persist_directory
+    )
     return vectorstore
 
 def get_similar_chunks(query: str, k: int = 5):
-    vectorstore = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
-
+    vectorstore = Chroma(
+        persist_directory="chroma_index",
+        embedding_function=embeddings
+    )
     docs = vectorstore.similarity_search(query, k=k)
-    
     context = " ".join([doc.page_content for doc in docs])
     main_article = extract_article_heading(query)
 
@@ -74,8 +76,7 @@ def get_similar_chunks(query: str, k: int = 5):
         sources.remove(main_article)
         sources.insert(0, main_article)
 
-    sources = sources[:2]  # for now i am only showing the top 2 sources, ordered by priority
-
+    sources = sources[:2]
     return context, sources
 
 def get_response_from_query(query: str, context: str) -> str:
@@ -110,17 +111,17 @@ Be specific and cite the article numbers or key phrases wherever possible.
 if __name__ == "__main__":
     pdf_file = Path("constitution_of_india.pdf")
     # vector_db_from_pdf(str(pdf_file))
-    if not Path("faiss_index").exists():
+    if not Path("chroma_index").exists():
         vector_db_from_pdf(str(pdf_file))
     
     
     query = input("Enter your query: ")
 
-    print(f"\nWorking on it...\n")
+    print(f"\nWorking on it...")
     context, sources = get_similar_chunks(query)
 
     
-    print("\nGenerating answer...\n")
+    print("Generating answer...\n")
     answer = get_response_from_query(query, context)
 
     print("\nAnswer:")
