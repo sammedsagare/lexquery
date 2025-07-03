@@ -54,3 +54,6 @@ logs/
 
 # Faiss index directory
 faiss_index/
+
+# Crhoma index directory
+chroma_index/
