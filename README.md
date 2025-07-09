@@ -1,4 +1,4 @@
-# Talk With PDF
+# LexQuery
 
 This project is built to focus on Indian Law-related PDFs. It is an AI-powered legal assistant that answers questions using official legal documents (like the Constitution of India, IPC, and CrPC) in PDF format. It uses large language models (LLMs), semantic search, and conversation memory to provide accurate, context-aware, and citation-rich legal responses—strictly based on the content of your uploaded PDFs.
 
@@ -7,7 +7,7 @@ This project is built to focus on Indian Law-related PDFs. It is an AI-powered l
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/sammedsagare/talk_with_pdf.git
+   git clone https://github.com/sammedsagare/lexquery.git
    cd talk_with_pdf
    ```
 
