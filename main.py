@@ -10,6 +10,11 @@ import re
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.messages import HumanMessage, AIMessage
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
 
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L12-v2")
 
@@ -68,17 +73,44 @@ def vector_db_from_pdfs(pdf_paths: list[str], persist_directory: str = "chroma_i
     return vectorstore
 
 
-def get_similar_chunks(query: str, k: int = 5):
+def get_similar_chunks(query: str, k: int = 12):
     vectorstore = Chroma(
         persist_directory="chroma_index",
         embedding_function=embeddings
     )
+    
+    # Get initial results
     docs = vectorstore.similarity_search(query, k=k)
-    context = "\n\n".join([doc.page_content for doc in docs])
+    
+    # Try to ensure we get chunks from different law sources, especially BNS, BNSS, and BSA
+    law_sources = {}
+    for doc in docs:
+        law = doc.metadata.get("law", "unknown")
+        if law not in law_sources:
+            law_sources[law] = []
+        law_sources[law].append(doc)
+    
+    # Ensure we get results from the new legal documents
+    new_laws = {"BNS": "Bharatiya Nyaya Sanhita", "BNSS": "Bharatiya Nagarik Suraksha Sanhita", "BSA": "Bharatiya Sakshya Adhiniyam"}
+    for law_code, law_name in new_laws.items():
+        if law_code not in law_sources:
+            specific_docs = vectorstore.similarity_search(f"{query} {law_code} {law_name}", k=2)
+            docs.extend([doc for doc in specific_docs if doc.metadata.get("law") == law_code])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_docs = []
+    for doc in docs:
+        doc_id = (doc.page_content[:100], doc.metadata.get("law"))
+        if doc_id not in seen:
+            seen.add(doc_id)
+            unique_docs.append(doc)
+    
+    context = "\n\n".join([doc.page_content for doc in unique_docs[:k]])
 
     sources = []
         
-    for doc in docs:
+    for doc in unique_docs[:k]:
         article = doc.metadata.get("article_heading")
         if not article:
             match = re.search(r"(?i)\b(article\s+\d{1,3}[A-Z]?)", doc.page_content)
@@ -92,13 +124,23 @@ def get_similar_chunks(query: str, k: int = 5):
 
 
 def get_response_from_query(query: str, context: str, memory: InMemoryChatMessageHistory) -> str:
+    # Limit conversation history to prevent token overflow
+    recent_messages = memory.messages[-6:]  # Keep only last 3 exchanges (6 messages)
+    
     history_text = ""
-    for msg in memory.messages:
+    for msg in recent_messages:
         role = "You" if isinstance(msg, HumanMessage) else "Assistant"
         content_str = msg.content if isinstance(msg.content, str) else " ".join(str(item) for item in msg.content)
+        # Truncate very long messages
+        if len(content_str) > 500:
+            content_str = content_str[:500] + "... [truncated]"
         history_text += f"{role}: {content_str.strip()}\n"
 
-    full_context = f"--- Conversation so far ---\n{history_text}\n\n--- Retrieved context ---\n{context}"
+    # Truncate context if too long
+    if len(context) > 3000:
+        context = context[:3000] + "\n\n... [context truncated for token limit]"
+
+    full_context = f"--- Recent Conversation ---\n{history_text}\n\n--- Retrieved Context ---\n{context}"
 
     prompt = PromptTemplate(
         input_variables=["question", "docs"],
@@ -109,24 +151,30 @@ Your goal is to provide accurate, step-by-step legal advice using only the infor
 
 Use relevant laws from:
 - Constitution of India
-- Indian Penal Code (IPC)
-- Code of Criminal Procedure (CrPC)
+- Bharatiya Nyaya Sanhita (BNS) - The new criminal code
+- Bharatiya Nagarik Suraksha Sanhita (BNSS) - The new criminal procedure code
+- Bharatiya Sakshya Adhiniyam (BSA) - The new evidence act
 
 Respond in the following format:
 
 Advisory:
 • Provide a clear, step-by-step response addressing the user's current question.
 • If this question builds on a previous one, carry over the relevant context or assumptions.
+• Reference the current legal framework: BNS for criminal law, BNSS for criminal procedure, and BSA for evidence law.
 
 Citations:
 • List all relevant sections/articles clearly at the end.
+• IMPORTANT: Prioritize sections from BNS (criminal law), BNSS (criminal procedure), and BSA (evidence law) as they are the current legal framework.
 • Format examples:
   - Article 22(2) of the Constitution of India  
-  - Section 41 of the CrPC  
-  - Section 420 of the IPC
+  - Section 103 of the BNS
+  - Section 41 of the BNSS
+  - Section 25 of the BSA
 
 Rules:
 - Use ONLY the information from the context provided.
+- PRIORITIZE citing sections from BNS, BNSS, and BSA as they are the current legal codes.
+- When referencing criminal law, use BNS; for criminal procedure, use BNSS; for evidence law, use BSA.
 - NEVER invent information outside the legal sources.
 - If the documents do not contain enough info to answer accurately, respond with:  
   "I don't know — the legal documents provided do not contain enough information to answer this question."
@@ -154,8 +202,9 @@ Question:
 if __name__ == "__main__":
     pdf_files = [
         "constitution_of_india.pdf",
-        "IPC.pdf",
-        "CrPC.pdf"
+        "BNS.pdf",
+        "BNSS.pdf",
+        "BSA.pdf"
     ]
     persist_dir = "chroma_index"
 
@@ -169,6 +218,7 @@ if __name__ == "__main__":
 
         print("\nWorking on it...")
         context, sources = get_similar_chunks(query)
+        print(f"Retrieved sources: {sources}")
         print("Generating answer...\n")
         answer = get_response_from_query(query, context, memory)
 

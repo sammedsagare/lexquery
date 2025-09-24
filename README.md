@@ -1,13 +1,13 @@
 # Talk With PDF
 
-This project is built to focus on Indian Law-related PDFs. It is an AI-powered legal assistant that answers questions using official legal documents (like the Constitution of India, IPC, and CrPC) in PDF format. It uses large language models (LLMs), semantic search, and conversation memory to provide accurate, context-aware, and citation-rich legal responses—strictly based on the content of your uploaded PDFs.
+This project is built to focus on Indian Law-related PDFs. It is an AI-powered legal assistant that answers questions using official legal documents (like the Constitution of India, BNS, BNSS, and BSA) in PDF format. It uses large language models (LLMs), semantic search, and conversation memory to provide accurate, context-aware, and citation-rich legal responses—strictly based on the content of your uploaded PDFs.
 
 ## Environment Setup
 
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/sammedsagare/talk_with_pdf.git
+   git clone https://github.com/sammedsagare/lexquery.git
    cd talk_with_pdf
    ```
 
@@ -32,7 +32,7 @@ This project is built to focus on Indian Law-related PDFs. It is an AI-powered l
 
 ## Usage
 
-1. Place your law PDFs (e.g., `constitution_of_india.pdf`, `IPC.pdf`, `CrPC.pdf`) in the project directory.
+1. Place your law PDFs (e.g., `constitution_of_india.pdf`, `BNS.pdf`, `BNSS.pdf`, `BSA.pdf`) in the project directory.
 2. Run the main script:
 
    ```bash
@@ -45,7 +45,7 @@ This project is built to focus on Indian Law-related PDFs. It is an AI-powered l
 
 ## Features
 
-- Multi-document support: Constitution, IPC, CrPC (add more by editing the `pdf_files` list in `main.py`)
+- Multi-document support: Constitution of India, BNS (Bharatiya Nyaya Sanhita), BNSS (Bharatiya Nagarik Suraksha Sanhita), BSA (Bharatiya Sakshya Adhiniyam) - India's current legal framework
 - Fast semantic search using Chroma vector store
 - Multi-turn conversation memory (remembers previous questions/answers)
 - Legal citations with every answer
@@ -60,6 +60,8 @@ This project is built to focus on Indian Law-related PDFs. It is an AI-powered l
 
 - You must provide your own Groq API key for LLM responses.
 - For best results, use high-quality, text-based PDFs.
+- This system uses India's current legal framework: BNS (criminal law), BNSS (criminal procedure), and BSA (evidence law)
+- The system prioritizes citations from the current legal codes over outdated references
 - To add more laws, simply add their PDF filenames to the `pdf_files` list in `main.py`
 
 ## Relevant Links
