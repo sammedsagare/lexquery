@@ -4,7 +4,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_groq import ChatGroq
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
 import re
 from langchain_core.runnables.history import RunnableWithMessageHistory
@@ -12,6 +12,7 @@ from langchain_core.chat_history import InMemoryChatMessageHistory
 from langchain_core.messages import HumanMessage, AIMessage
 from dotenv import load_dotenv
 import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 # Load environment variables from .env file
 load_dotenv()
