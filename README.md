@@ -39,6 +39,13 @@ This project is built to focus on Indian Law-related PDFs. It is an AI-powered l
    python main.py
    ```
 
+   For API:
+
+   ```bash
+   uvicorn api:app --reload
+   ```
+   Link: http://127.0.0.1:8000
+
 3. On first run, the script will build a Chroma vector index from all provided PDFs. This may take a few minutes.
 4. Enter your legal questions at the prompt. The assistant will use conversation memory to provide context-aware answers, citing relevant articles/sections from the loaded documents.
 5. Type `exit` to quit the chat.

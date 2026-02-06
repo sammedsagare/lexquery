@@ -202,10 +202,10 @@ Question:
 
 if __name__ == "__main__":
     pdf_files = [
-        "constitution_of_india.pdf",
-        "BNS.pdf",
-        "BNSS.pdf",
-        "BSA.pdf"
+        "docs/constitution_of_india.pdf",
+        "docs/BNS.pdf",
+        "docs/BNSS.pdf",
+        "docs/BSA.pdf"
     ]
     persist_dir = "chroma_index"
 
